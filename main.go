@@ -27,25 +27,22 @@ import (
  */
 
 func encode(newid int) string {
-	//dict := "abcdefghijklmnopqrstuvwxyz0123456789"
-	//dict_len := len(dict)
-	//fmt.Printf("%q",dict[0]) // to get a char
+	dict := "abcdefghijklmnopqrstuvwxyz0123456789"
+	dict_len := len(dict)
 	inc := newid
-	conv_ints := make([]int, 1, 1)
+	conv_ints := make([]int, 0, 1)
 	for inc > 0 {
 		remainder := inc % 62
 		conv_ints = append(conv_ints, remainder)
-		inc = inc / 62
+		inc = inc / dict_len
 	}
 	fmt.Println(conv_ints)
 	sort.Sort(sort.Reverse(sort.IntSlice(conv_ints)))
 	fmt.Println(conv_ints)
-	//for i := 0; i < len(original); i++ {
-	//	conv_ints += fmt.Sprintf("%c", original[i])
-	//}
-	final := make([]byte, len(conv_ints), len(conv_ints))
+	final := ""
 	for i := 0; i < len(conv_ints); i++ {
-		final = append(final, byte(conv_ints[i]))
+		//final += strconv.Itoa(conv_ints[i])
+		final += fmt.Sprintf("%c", dict[i])
 	}
 	return string(final)
 }
