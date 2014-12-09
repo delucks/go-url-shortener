@@ -1,5 +1,13 @@
 package main
 
+/*
+ * go-url-shortener
+ *
+ * Author: delucks
+ * Requirements: github.com/go-sql-driver/mysql
+ *
+ */
+
 import (
 	"database/sql"
 	"fmt"
@@ -23,8 +31,7 @@ import (
  * If not, return an error page with a link back to /
  * / should be some kind of a welcome page with a form to submit the URL to the POST
  *
- * SQL used:
- * create database if not exists go_url_shortener;
+ * SQL queue:
  */
 
 func encode(newid int) string {
@@ -37,15 +44,19 @@ func encode(newid int) string {
 		conv_ints = append(conv_ints, remainder)
 		inc = inc / dict_len
 	}
-	fmt.Println(conv_ints)
+	//fmt.Println(conv_ints)
 	sort.Sort(sort.Reverse(sort.IntSlice(conv_ints)))
-	fmt.Println(conv_ints)
+	//fmt.Println(conv_ints)
 	final := ""
 	for i := 0; i < len(conv_ints); i++ {
 		//final += strconv.Itoa(conv_ints[i])
 		final += fmt.Sprintf("%c", dict[i])
 	}
 	return string(final)
+}
+
+func decode(ext string) int {
+	return 0
 }
 
 func handleURL(w http.ResponseWriter, r *http.Request) {
@@ -82,13 +93,11 @@ func connectDB() *sql.DB {
 	if err != nil {
 		fmt.Println(err.Error())
 		log.Fatal("Opening failed")
-		return nil
 	}
 	err = db.Ping()
 	if err != nil {
 		fmt.Println(err.Error())
 		log.Fatal("Ping failed")
-		return nil
 	}
 	return db
 }
@@ -96,13 +105,13 @@ func connectDB() *sql.DB {
 func main() {
 	args := os.Args
 	if len(args) > 1 {
-		if args[1] == "testAlg" {
+		if args[1] == "-t" {
 			if len(args) < 2 {
 				log.Fatal("Invalid number of arguments to -t")
 			} else {
 				val, err := strconv.Atoi(args[2])
 				if err != nil {
-					log.Fatal("Conversion failed!")
+					log.Fatal("\x1b[31mConversion failed!\x1b[0m")
 				}
 				fmt.Printf("Int to convert: %d\n", val)
 				fmt.Printf("Converted int:  %s\n", encode(val))
@@ -113,9 +122,6 @@ func main() {
 	} else {
 		var db *sql.DB
 		db = connectDB()
-		if db == nil {
-			log.Fatal("Connection to database failed (general reason)")
-		}
 		setupDB(db)
 		for true {
 			var prev int
@@ -125,8 +131,14 @@ func main() {
 				log.Fatal("Error getting next id")
 				return
 			}
-			fmt.Printf("To insert: %d\n", prev+1)
-			fmt.Printf("The string to use %s\n", encode(prev+1))
+			fmt.Printf("\x1b[32m[::]\x1b[0m To insert:         %d\n", prev+1)
+			fmt.Printf("\x1b[32m[::]\x1b[0m The string to use: %s\n", encode(prev+1))
+			result, err := db.Exec("INSERT INTO url(mapping) values(?)", encode(prev+1))
+			if err != nil {
+				log.Fatal("Insert failed!")
+			} else {
+				fmt.Println(result)
+			}
 		}
 		//http.HandleFunc("/", handleURL)
 		//http.ListenAndServe("127.0.0.1:8080",nil)
