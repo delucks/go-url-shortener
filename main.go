@@ -3,9 +3,13 @@ package main
 import (
 	"database/sql"
 	"fmt"
-	_ "github.com/go-sql-driver/mysql"
 	"net/http"
+	"os"
+	"sort"
+	"strconv"
 	"strings"
+
+	_ "github.com/go-sql-driver/mysql"
 )
 
 /*
@@ -22,15 +26,28 @@ import (
  * create database if not exists go_url_shortener;
  */
 
-func shorten(original string) string {
-	dict := "abcdefghijklmnopqrstuvwxyz0123456789"
+func encode(newid int) string {
+	//dict := "abcdefghijklmnopqrstuvwxyz0123456789"
 	//dict_len := len(dict)
-	fmt.Printf("%q", dict[0])
-	final := ""
-	for i := 0; i < len(original); i++ {
-		final += fmt.Sprintf("%c", original[i])
+	//fmt.Printf("%q",dict[0]) // to get a char
+	inc := newid
+	conv_ints := make([]int, 1, 1)
+	for inc > 0 {
+		remainder := inc % 62
+		conv_ints = append(conv_ints, remainder)
+		inc = inc / 62
 	}
-	return final
+	fmt.Println(conv_ints)
+	sort.Sort(sort.Reverse(sort.IntSlice(conv_ints)))
+	fmt.Println(conv_ints)
+	//for i := 0; i < len(original); i++ {
+	//	conv_ints += fmt.Sprintf("%c", original[i])
+	//}
+	final := make([]byte, len(conv_ints), len(conv_ints))
+	for i := 0; i < len(conv_ints); i++ {
+		final = append(final, byte(conv_ints[i]))
+	}
+	return string(final)
 }
 
 func handleURL(w http.ResponseWriter, r *http.Request) {
@@ -54,20 +71,38 @@ func handleURL(w http.ResponseWriter, r *http.Request) {
 }
 
 func main() {
-	fmt.Println(shorten("bar"))
-	db, err := sql.Open("mysql", "root@tcp(127.0.0.1:3306)/go_url_shortener")
-	if err != nil {
-		fmt.Println(err.Error())
-		fmt.Println("Opening failed")
-		return
+	args := os.Args
+	if len(args) > 1 {
+		if args[1] == "testAlg" {
+			if len(args) < 2 {
+				fmt.Println("Invalid number of arguments to -t")
+			} else {
+				val, err := strconv.Atoi(args[2])
+				if err != nil {
+					fmt.Println("Conversion failed!")
+					return
+				}
+				fmt.Printf("Int to convert: %d\n", val)
+				fmt.Printf("Converted int:  %s\n", encode(val))
+			}
+		} else {
+			fmt.Printf("Invalid argument %s\n", args[1])
+		}
+	} else {
+		db, err := sql.Open("mysql", "root@tcp(127.0.0.1:3306)/go_url_shortener")
+		if err != nil {
+			fmt.Println(err.Error())
+			fmt.Println("Opening failed")
+			return
+		}
+		defer db.Close()
+		err = db.Ping()
+		if err != nil {
+			fmt.Println(err.Error())
+			fmt.Println("Ping failed")
+			return
+		}
+		//http.HandleFunc("/", handleURL)
+		//http.ListenAndServe("127.0.0.1:8080",nil)
 	}
-	defer db.Close()
-	err = db.Ping()
-	if err != nil {
-		fmt.Println(err.Error())
-		fmt.Println("Ping failed")
-		return
-	}
-	//http.HandleFunc("/", handleURL)
-	//http.ListenAndServe("127.0.0.1:8080",nil)
 }
