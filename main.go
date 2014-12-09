@@ -3,6 +3,7 @@ package main
 import (
 	"database/sql"
 	"fmt"
+	"log"
 	"net/http"
 	"os"
 	"sort"
@@ -70,10 +71,26 @@ func handleURL(w http.ResponseWriter, r *http.Request) {
 func setupDB(db *sql.DB) {
 	result, err := db.Exec("CREATE TABLE IF NOT EXISTS url(id INT PRIMARY KEY NOT NULL AUTO_INCREMENT, mapping VARCHAR(255) NOT NULL)")
 	if err != nil {
-		fmt.Println(err.Error())
+		log.Fatal(err.Error())
 		return
 	}
 	fmt.Println(result)
+}
+
+func connectDB() *sql.DB {
+	db, err := sql.Open("mysql", "root@tcp(127.0.0.1:3306)/go_url_shortener")
+	if err != nil {
+		fmt.Println(err.Error())
+		log.Fatal("Opening failed")
+		return nil
+	}
+	err = db.Ping()
+	if err != nil {
+		fmt.Println(err.Error())
+		log.Fatal("Ping failed")
+		return nil
+	}
+	return db
 }
 
 func main() {
@@ -81,32 +98,23 @@ func main() {
 	if len(args) > 1 {
 		if args[1] == "testAlg" {
 			if len(args) < 2 {
-				fmt.Println("Invalid number of arguments to -t")
+				log.Fatal("Invalid number of arguments to -t")
 			} else {
 				val, err := strconv.Atoi(args[2])
 				if err != nil {
-					fmt.Println("Conversion failed!")
-					return
+					log.Fatal("Conversion failed!")
 				}
 				fmt.Printf("Int to convert: %d\n", val)
 				fmt.Printf("Converted int:  %s\n", encode(val))
 			}
 		} else {
-			fmt.Printf("Invalid argument %s\n", args[1])
+			log.Fatalf("Invalid argument %s\n", args[1])
 		}
 	} else {
-		db, err := sql.Open("mysql", "root@tcp(127.0.0.1:3306)/go_url_shortener")
-		if err != nil {
-			fmt.Println(err.Error())
-			fmt.Println("Opening failed")
-			return
-		}
-		defer db.Close()
-		err = db.Ping()
-		if err != nil {
-			fmt.Println(err.Error())
-			fmt.Println("Ping failed")
-			return
+		var db *sql.DB
+		db = connectDB()
+		if db == nil {
+			log.Fatal("Connection to database failed (general reason)")
 		}
 		setupDB(db)
 		for true {
@@ -114,7 +122,7 @@ func main() {
 			row := db.QueryRow("SELECT max(id) FROM url")
 			err := row.Scan(&prev)
 			if err != nil {
-				fmt.Println("Error getting next id")
+				log.Fatal("Error getting next id")
 				return
 			}
 			fmt.Printf("To insert: %d\n", prev+1)
