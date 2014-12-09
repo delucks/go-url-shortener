@@ -67,6 +67,15 @@ func handleURL(w http.ResponseWriter, r *http.Request) {
 	}
 }
 
+func setupDB(db *sql.DB) {
+	result, err := db.Exec("CREATE TABLE IF NOT EXISTS url(id INT PRIMARY KEY NOT NULL AUTO_INCREMENT, mapping VARCHAR(255) NOT NULL)")
+	if err != nil {
+		fmt.Println(err.Error())
+		return
+	}
+	fmt.Println(result)
+}
+
 func main() {
 	args := os.Args
 	if len(args) > 1 {
@@ -98,6 +107,18 @@ func main() {
 			fmt.Println(err.Error())
 			fmt.Println("Ping failed")
 			return
+		}
+		setupDB(db)
+		for true {
+			var prev int
+			row := db.QueryRow("SELECT max(id) FROM url")
+			err := row.Scan(&prev)
+			if err != nil {
+				fmt.Println("Error getting next id")
+				return
+			}
+			fmt.Printf("To insert: %d\n", prev+1)
+			fmt.Printf("The string to use %s\n", encode(prev+1))
 		}
 		//http.HandleFunc("/", handleURL)
 		//http.ListenAndServe("127.0.0.1:8080",nil)
