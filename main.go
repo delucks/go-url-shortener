@@ -35,6 +35,8 @@ import (
  * SQL queue:
  */
 
+var DBCONN *sql.DB
+
 /*
  * Base conversion functions
  */
@@ -78,6 +80,9 @@ func getchr(input int) byte {
 }
 
 func encode(newid int) string {
+	if newid == 0 {
+		return "0"
+	}
 	dict_len := 62
 	inc := newid
 	conv_ints := make([]byte, 0, 1)
@@ -108,40 +113,15 @@ func decode(ext string) int {
 }
 
 /*
- * HTTP
- */
-
-func handleURL(w http.ResponseWriter, r *http.Request) {
-	if r.URL.Path == "/" {
-		if r.Method == "POST" {
-			r.ParseForm() // needed so we have the post'd params
-			url := r.Form.Get("url")
-			if url != "" { // go sets empty strings to ""
-				w.Write([]byte(url))
-				fmt.Println(url)
-			} else {
-				w.Write([]byte("POST the site with a valid url"))
-			}
-		} else {
-			w.Write([]byte("Welcome to my URL shortener. Please POST this path with a valid URL."))
-		}
-	} else {
-		req := strings.Split(r.URL.Path, "/")[1] // grab the first URI after / to use as the url
-		fmt.Println(req)
-	}
-}
-
-/*
  * Database
  */
 
 func setupDB(db *sql.DB) {
-	result, err := db.Exec("CREATE TABLE IF NOT EXISTS url(id INT PRIMARY KEY NOT NULL AUTO_INCREMENT, mapping VARCHAR(255) NOT NULL)")
+	_, err := db.Exec("CREATE TABLE IF NOT EXISTS url(id INT PRIMARY KEY NOT NULL AUTO_INCREMENT, mapping VARCHAR(255) NOT NULL)")
 	if err != nil {
 		log.Fatal(err.Error())
 		return
 	}
-	fmt.Println(result)
 }
 
 func connectDB() *sql.DB {
@@ -156,6 +136,71 @@ func connectDB() *sql.DB {
 		log.Fatal("Ping failed")
 	}
 	return db
+}
+
+/*
+ * HTTP
+ */
+
+func geturl(id int) string {
+	var final string
+	var db *sql.DB
+	db = connectDB()
+	selstmt := fmt.Sprintf("SELECT mapping from url WHERE id='%d'", id)
+	row := db.QueryRow(selstmt)
+	err := row.Scan(&final)
+	if err != nil {
+		fmt.Printf("Error getting mapping for ID %d\n", id)
+		fmt.Println(err.Error())
+		final = "no such URL"
+	}
+	db.Close()
+	return final
+}
+
+func addurl(url string) string {
+	var prev int
+	var db *sql.DB
+	db = connectDB()
+	row := db.QueryRow("SELECT max(id) FROM url")
+	err := row.Scan(&prev)
+	if err != nil {
+		log.Fatal("Error getting next id")
+		log.Fatal(err.Error())
+		return ""
+	}
+	//fmt.Printf("\x1b[32m[::]\x1b[0m To insert:         %d\n", prev+1)
+	//fmt.Printf("\x1b[32m[::]\x1b[0m The string to use: %s\n", encode(prev+1))
+	mapping := encode(prev + 1)
+	result, err := db.Exec("INSERT INTO url(mapping) values(?)", url)
+	if err != nil {
+		log.Fatalf("Insert failed for %s, index %d, encoding %s", url, prev+1, mapping)
+	} else {
+		fmt.Println("[%d] %s to %s (%s)\n", prev+1, url, mapping, result)
+	}
+	db.Close()
+	return mapping
+}
+
+func handleURL(w http.ResponseWriter, r *http.Request) {
+	if r.URL.Path == "/" {
+		if r.Method == "POST" {
+			r.ParseForm() // needed so we have the post'd params
+			url := r.Form.Get("url")
+			if url != "" { // go sets empty strings to ""
+				mapping := addurl(url)
+				w.Write([]byte("http://thatson.me/" + mapping))
+			} else {
+				w.Write([]byte("POST the site with a valid url"))
+			}
+		} else {
+			w.Write([]byte("Welcome to my URL shortener. Please POST this path with a valid URL."))
+		}
+	} else {
+		req := strings.Split(r.URL.Path, "/")[1] // grab the first URI after / to use as the url
+		w.Write([]byte(geturl(decode(req))))
+		fmt.Printf("Returned %s on query string %s\n", geturl(decode(req)), req)
+	}
 }
 
 /*
@@ -200,27 +245,10 @@ func main() {
 			log.Fatalf("Invalid argument %s\n", args[1])
 		}
 	} else {
-		var db *sql.DB
-		db = connectDB()
-		setupDB(db)
-		for true {
-			var prev int
-			row := db.QueryRow("SELECT max(id) FROM url")
-			err := row.Scan(&prev)
-			if err != nil {
-				log.Fatal("Error getting next id")
-				return
-			}
-			fmt.Printf("\x1b[32m[::]\x1b[0m To insert:         %d\n", prev+1)
-			fmt.Printf("\x1b[32m[::]\x1b[0m The string to use: %s\n", encode(prev+1))
-			result, err := db.Exec("INSERT INTO url(mapping) values(?)", encode(prev+1))
-			if err != nil {
-				log.Fatal("Insert failed!")
-			} else {
-				fmt.Println(result)
-			}
-		}
-		//http.HandleFunc("/", handleURL)
-		//http.ListenAndServe("127.0.0.1:8080",nil)
+		DBCONN = connectDB()
+		setupDB(DBCONN)
+		DBCONN.Close()
+		http.HandleFunc("/", handleURL)
+		http.ListenAndServe("127.0.0.1:8080", nil)
 	}
 }
