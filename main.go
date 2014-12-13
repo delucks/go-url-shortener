@@ -34,8 +34,46 @@ import (
  * SQL queue:
  */
 
+func getord(input byte) int {
+	LOWER_OFFSET := 87
+	DIGIT_OFFSET := 48
+	UPPER_OFFSET := 29
+	var result int
+	if input <= 57 && input >= 48 {
+		result = int(input) - DIGIT_OFFSET
+	} else if input >= 97 && input <= 122 {
+		result = int(input) - LOWER_OFFSET
+	} else if input >= 65 && input <= 90 {
+		result = int(input) - UPPER_OFFSET
+	} else {
+		fmt.Printf("Dafux is this\n")
+		result = 0
+	}
+	//fmt.Printf("%c as base10 is %d\n", input, result)
+	return result
+}
+
+func getchr(input int) byte {
+	LOWER_OFFSET := 87
+	DIGIT_OFFSET := 48
+	UPPER_OFFSET := 29
+	var result byte
+	if input < 10 {
+		result = byte(input + DIGIT_OFFSET)
+	} else if input < 36 {
+		result = byte(input + LOWER_OFFSET)
+	} else if input < 63 {
+		result = byte(input + UPPER_OFFSET)
+	} else {
+		fmt.Printf("Dafux is this\n")
+		result = byte(0)
+	}
+	//fmt.Printf("%d as base65 is %c\n", input, result)
+	return result
+}
+
 func encode(newid int) string {
-	dict := "abcdefghijklmnopqrstuvwxyz0123456789"
+	dict := "0123456789abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ"
 	dict_len := len(dict)
 	inc := newid
 	conv_ints := make([]int, 0, 1)
