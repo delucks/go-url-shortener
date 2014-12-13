@@ -12,9 +12,10 @@ import (
 	"database/sql"
 	"fmt"
 	"log"
+	"math"
 	"net/http"
 	"os"
-	"sort"
+	//"sort"
 	"strconv"
 	"strings"
 
@@ -32,6 +33,10 @@ import (
  * / should be some kind of a welcome page with a form to submit the URL to the POST
  *
  * SQL queue:
+ */
+
+/*
+ * Base conversion functions
  */
 
 func getord(input byte) int {
@@ -73,29 +78,38 @@ func getchr(input int) byte {
 }
 
 func encode(newid int) string {
-	dict := "0123456789abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ"
-	dict_len := len(dict)
+	dict_len := 62
 	inc := newid
-	conv_ints := make([]int, 0, 1)
+	conv_ints := make([]byte, 0, 1)
 	for inc > 0 {
 		remainder := inc % 62
-		conv_ints = append(conv_ints, remainder)
+		conv_ints = append(conv_ints, getchr(remainder))
 		inc = inc / dict_len
 	}
-	//fmt.Println(conv_ints)
-	sort.Sort(sort.Reverse(sort.IntSlice(conv_ints)))
-	//fmt.Println(conv_ints)
 	final := ""
-	for i := 0; i < len(conv_ints); i++ {
-		//final += strconv.Itoa(conv_ints[i])
-		final += fmt.Sprintf("%c", dict[i])
+	for i := len(conv_ints) - 1; i >= 0; i-- {
+		final += fmt.Sprintf("%c", conv_ints[i])
 	}
-	return string(final)
+	return final
 }
 
 func decode(ext string) int {
-	return 0
+	runes := []rune(ext)
+	for i, j := 0, len(runes)-1; i < j; i, j = i+1, j-1 {
+		runes[i], runes[j] = runes[j], runes[i]
+	}
+	bytes := []byte(string(runes))
+	//fmt.Println(bytes)
+	result := 0
+	for i := 0; i < len(bytes); i++ {
+		result += getord(bytes[i]) * int(math.Pow(float64(62), float64(i)))
+	}
+	return result
 }
+
+/*
+ * HTTP
+ */
 
 func handleURL(w http.ResponseWriter, r *http.Request) {
 	if r.URL.Path == "/" {
@@ -116,6 +130,10 @@ func handleURL(w http.ResponseWriter, r *http.Request) {
 		fmt.Println(req)
 	}
 }
+
+/*
+ * Database
+ */
 
 func setupDB(db *sql.DB) {
 	result, err := db.Exec("CREATE TABLE IF NOT EXISTS url(id INT PRIMARY KEY NOT NULL AUTO_INCREMENT, mapping VARCHAR(255) NOT NULL)")
@@ -140,12 +158,16 @@ func connectDB() *sql.DB {
 	return db
 }
 
+/*
+ * Main
+ */
+
 func main() {
 	args := os.Args
 	if len(args) > 1 {
-		if args[1] == "-t" {
+		if args[1] == "-e" {
 			if len(args) < 2 {
-				log.Fatal("Invalid number of arguments to -t")
+				log.Fatal("Invalid number of arguments to -e. Pass in an integer to be converted")
 			} else {
 				val, err := strconv.Atoi(args[2])
 				if err != nil {
@@ -153,6 +175,26 @@ func main() {
 				}
 				fmt.Printf("Int to convert: %d\n", val)
 				fmt.Printf("Converted int:  %s\n", encode(val))
+			}
+		} else if args[1] == "-d" {
+			if len(args) < 2 {
+				log.Fatal("Invalid number of arguments to -d. Pass in an string to be converted")
+			} else {
+				fmt.Printf("String to decode: %s\n", args[2])
+				fmt.Printf("Converted int:    %d\n", decode(args[2]))
+			}
+		} else if args[1] == "-t" {
+			if len(args) < 2 {
+				log.Fatal("Invalid number of arguments to -e. Pass in an integer to test")
+			} else {
+				val, err := strconv.Atoi(args[2])
+				if err != nil {
+					log.Fatal("\x1b[31mConversion failed!\x1b[0m")
+				}
+				fmt.Printf("int to encode: %d\n", val)
+				result := encode(val)
+				fmt.Printf("base62 representation: %s\n", result)
+				fmt.Printf("and back: %d\n", decode(result))
 			}
 		} else {
 			log.Fatalf("Invalid argument %s\n", args[1])
