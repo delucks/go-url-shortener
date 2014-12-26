@@ -8,6 +8,10 @@ package main
  *
  */
 
+/* TODO:
+ * Check if url already in database, if so return the already generated ID
+ */
+
 import (
 	"database/sql"
 	"fmt"
@@ -21,21 +25,6 @@ import (
 
 	_ "github.com/go-sql-driver/mysql"
 )
-
-/*
- * Options for generating unique url paths:
- * Increment something globally and base64 encode it for the mapping
- * Take a hash of the url and keep that for the mapping
- *
- * Either way: when a request comes in for something other than /
- * Look it up in the database. If the key exists, return a HTTP redirect to its url
- * If not, return an error page with a link back to /
- * / should be some kind of a welcome page with a form to submit the URL to the POST
- *
- * SQL queue:
- */
-
-var DBCONN *sql.DB
 
 /*
  * Base conversion functions
@@ -176,7 +165,7 @@ func addurl(url string) string {
 	if err != nil {
 		log.Fatalf("Insert failed for %s, index %d, encoding %s", url, prev+1, mapping)
 	} else {
-		fmt.Println("[%d] %s to %s (%s)\n", prev+1, url, mapping, result)
+		fmt.Printf("[%d] %s to %s (%s)\n", prev+1, url, mapping, result)
 	}
 	db.Close()
 	return mapping
@@ -198,8 +187,11 @@ func handleURL(w http.ResponseWriter, r *http.Request) {
 		}
 	} else {
 		req := strings.Split(r.URL.Path, "/")[1] // grab the first URI after / to use as the url
-		w.Write([]byte(geturl(decode(req))))
-		fmt.Printf("Returned %s on query string %s\n", geturl(decode(req)), req)
+		if req != "favicon.ico" {
+			refresh := fmt.Sprintf("<html><head><meta http-equiv='Refresh' content='0; url=%s' /></head></html>", geturl(decode(req)))
+			w.Write([]byte(refresh))
+			fmt.Printf("Returned %s on query string %s\n", geturl(decode(req)), req)
+		}
 	}
 }
 
@@ -245,6 +237,7 @@ func main() {
 			log.Fatalf("Invalid argument %s\n", args[1])
 		}
 	} else {
+		var DBCONN *sql.DB
 		DBCONN = connectDB()
 		setupDB(DBCONN)
 		DBCONN.Close()
